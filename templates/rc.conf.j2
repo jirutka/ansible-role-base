@@ -30,17 +30,20 @@ rc_shell=/sbin/sulogin
 # come up.
 rc_depend_strict="NO"
 
-# rc_hotplug is a list of services that we allow to be hotplugged.
-# By default we do not allow hotplugging.
+# rc_hotplug controls which services we allow to be hotplugged.
 # A hotplugged service is one started by a dynamic dev manager when a matching
 # hardware device is found.
-# This service is intrinsically included in the boot runlevel.
-# To disable services, prefix with a !
+# Hotplugged services appear in the "hotplugged" runlevel.
+# If rc_hotplug is set to any value, we compare the name of this service
+# to every pattern in the value, from left to right, and we allow the
+# service to be hotplugged if it matches a pattern, or if it matches no
+# patterns. Patterns can include shell wildcards.
+# To disable services from being hotplugged, prefix patterns with "!".
+#If rc_hotplug is not set or is empty, all hotplugging is disabled.
 # Example - rc_hotplug="net.wlan !net.*"
-# This allows net.wlan and any service not matching net.* to be plugged.
-# Example - rc_hotplug="*"
-# This allows all services to be hotplugged
-#rc_hotplug="*"
+# This allows net.wlan and any service not matching net.* to be hotplugged.
+# Example - rc_hotplug="!net.*"
+# This allows services that do not match "net.*" to be hotplugged.
 
 # rc_logger launches a logging daemon to log the entire rc process to
 # /var/log/rc.log
@@ -115,8 +118,14 @@ unicode="YES"
 # Some daemons are started and stopped via start-stop-daemon.
 # We can set some things on a per service basis, like the nicelevel.
 #SSD_NICELEVEL="-19"
+# Or the ionice level. The format is class[:data] , just like the
+# --ionice start-stop-daemon parameter.
+#SSD_IONICELEVEL="2:2"
 
 # Pass ulimit parameters
+# If you are using bash in POSIX mode for your shell, note that the
+# ulimit command uses a block size of 512 bytes for the -c and -f
+# options
 #rc_ulimit="-u 30"
 
 # It's possible to define extra dependencies for services like so
@@ -141,41 +150,85 @@ unicode="YES"
 #rc_foo_bar_after="clock"
 
 # You can also remove dependencies.
-# This is mainly used for saying which servies do NOT provide net.
+# This is mainly used for saying which services do NOT provide net.
 #rc_net_tap0_provide="!net"
 
-##############################################################################
-# LINUX SPECIFIC OPTIONS
-
-# This is the subsystem type. Valid options on Linux:
-# ""        - nothing special
-# "lxc"     - Linux Containers
-# "openvz"  - Linux OpenVZ
-# "prefix"  - Prefix
-# "uml"     - Usermode Linux
-# "vserver" - Linux vserver
-# "xen0"    - Xen0 Domain
-# "xenU"    - XenU Domain
-# If this is commented out, automatic detection will be used.
+# This is the subsystem type.
+# It is used to match against keywords set by the keyword call in the
+# depend function of service scripts.
 #
-# This should be set to the value representing the environment this file is
+# It should be set to the value representing the environment this file is
 # PRESENTLY in, not the virtualization the environment is capable of.
+# If it is commented out, automatic detection will be used.
+#
+# The list below shows all possible settings as well as the host
+# operating systems where they can be used and autodetected.
+#
+# ""               - nothing special
+# "docker"         - Docker container manager (Linux)
+# "jail"           - Jail (DragonflyBSD or FreeBSD)
+# "lxc"            - Linux Containers
+# "openvz"         - Linux OpenVZ
+# "prefix"         - Prefix
+# "rkt"            - CoreOS container management system (Linux)
+# "subhurd"        - Hurd subhurds (to be checked)
+# "systemd-nspawn" - Container created by systemd-nspawn (Linux)
+# "uml"            - Usermode Linux
+# "vserver"        - Linux vserver
+# "xen0"           - Xen0 Domain (Linux and NetBSD)
+# "xenU"           - XenU Domain (Linux and NetBSD)
 rc_sys="{{ rc_subsystem_type | default('') }}"
 
-# This is the number of tty's used in most of the rc-scripts (like
-# consolefont, numlock, etc ...)
+# if  you use openrc-init, which is currently only available on Linux,
+# this is the default runlevel to activate after "sysinit" and "boot"
+# when booting.
+#rc_default_runlevel="default"
+
+# on Linux and Hurd, this is the number of ttys allocated for logins
+# It is used in the consolefont, keymaps, numlock and termencoding
+# service scripts.
 rc_tty_number=12
 
 ##############################################################################
-# CGROUPS RESOURCE MANAGEMENT
+# LINUX CGROUPS RESOURCE MANAGEMENT
 
-# If you have cgroups turned on in your kernel, this switch controls
-# whether or not a group for each controller is mounted under
-# /sys/fs/cgroup.
-# None of the other options in this section work if this is set to "NO".
+# This sets the mode used to mount cgroups.
+# "hybrid" mounts cgroups version 2 on /sys/fs/cgroup/unified and
+# cgroups version 1 on /sys/fs/cgroup.
+# "legacy" mounts cgroups version 1 on /sys/fs/cgroup
+# "unified" mounts cgroups version 2 on /sys/fs/cgroup
+#rc_cgroup_mode="hybrid"
+
+# This is a list of controllers which should be enabled for cgroups version 2.
+# If hybrid mode is being used, controllers listed here will not be
+# available for cgroups version 1.
+# This is a global setting.
+#rc_cgroup_controllers=""
+
+# This variable contains the cgroups version 2 settings for your services.
+# If this is set in this file, the settings will apply to all services.
+# If you want different settings for each service, place the settings in
+# /etc/conf.d/foo for service foo.
+# The format is to specify the setting and value followed by a newline.
+# Multiple settings and values can be specified.
+# For example, you would use this to set the maximum memory and maximum
+# number of pids for a service.
+#rc_cgroup_settings="
+#memory.max 10485760
+#pids.max max
+#"
+#
+# For more information about the adjustments that can be made with
+# cgroups version 2, see Documentation/cgroups-v2.txt in the linux kernel
+# source tree.
+#rc_cgroup_settings=""
+
+# This switch controls whether or not cgroups version 1 controllers are
+# individually mounted under
+# /sys/fs/cgroup in hybrid or legacy mode.
 #rc_controller_cgroups="YES"
 
-# The following settings allow you to set up values for the cgroup
+# The following settings allow you to set up values for the cgroups version 1
 # controllers for your services.
 # They can be set in this file;, however, if you do this, the settings
 # will apply to all of your services.
@@ -189,8 +242,9 @@ rc_tty_number=12
 # cpu.shares 512
 # "
 #
-#For more information about the adjustments that can be made with
-#cgroups, see Documentation/cgroups/* in the linux kernel source tree.
+# For more information about the adjustments that can be made with
+# cgroups version 1, see Documentation/cgroups-v1/* in the linux kernel
+# source tree.
 
 # Set the blkio controller settings for this service.
 #rc_cgroup_blkio=""
@@ -207,18 +261,50 @@ rc_tty_number=12
 # Set the devices controller settings for this service.
 #rc_cgroup_devices=""
 
+# Set the hugetlb controller settings for this service.
+#rc_cgroup_hugetlb=""
+
 # Set the memory controller settings for this service.
 #rc_cgroup_memory=""
+
+# Set the net_cls controller settings for this service.
+#rc_cgroup_net_cls=""
 
 # Set the net_prio controller settings for this service.
 #rc_cgroup_net_prio=""
 
-# Set this to YES if yu want all of the processes in a service's cgroup
+# Set the pids controller settings for this service.
+#rc_cgroup_pids=""
+
+# Set this to YES if you want all of the processes in a service's cgroup
 # killed when the service is stopped or restarted.
-# This should not be set globally because it kills all of the service's
-# child processes, and most of the time this is undesirable. Please set
-# it in /etc/conf.d/<service>.
+# Be aware that setting this to yes means all of a service's
+# child processes will be killed. Keep this in mind if you set this to
+# yes here instead of for the individual services in
+# /etc/conf.d/<service>.
 # To perform this cleanup manually for a stopped service, you can
 # execute cgroup_cleanup with /etc/init.d/<service> cgroup_cleanup or
 # rc-service <service> cgroup_cleanup.
+# The process followed in this cleanup is the following:
+# 1. send stopsig (sigterm if it isn't set) to all processes left in the
+# cgroup immediately followed by sigcont.
+# 2. Send sighup to all processes in the cgroup if rc_send_sighup is
+# yes.
+# 3. delay for rc_timeout_stopsec seconds.
+# 4. send sigkill to all processes in the cgroup unless disabled by
+# setting rc_send_sigkill to no.
 # rc_cgroup_cleanup="NO"
+
+# If this is yes, we will send sighup to the processes in the cgroup
+# immediately after stopsig and sigcont.
+#rc_send_sighup="NO"
+
+# This is the amount of time in seconds that we delay after sending sigcont
+# and optionally sighup, before we optionally send sigkill to all
+# processes in the # cgroup.
+# The default is 90 seconds.
+#rc_timeout_stopsec="90"
+
+# If this is set to no, we do not send sigkill to all processes in the
+# cgroup.
+#rc_send_sigkill="YES"
