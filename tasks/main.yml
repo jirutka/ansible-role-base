@@ -1,60 +1,69 @@
 ---
 - name: /etc/rc.conf
-  template: >
-    src=rc.conf.j2
-    dest=/etc/rc.conf
-    owner=root mode=0644
+  template:
+    src: rc.conf.j2
+    dest: /etc/rc.conf
+    owner: root
+    mode: 0644
   tags: config
 
 - name: /etc/localtime
-  command: >
-    rsync -ci /usr/share/zoneinfo/{{ timezone }} /etc/localtime
+  command: rsync -ci /usr/share/zoneinfo/{{ timezone }} /etc/localtime
   register: _result
   changed_when: _result.stdout != ""
   tags: config
 
 - name: /etc/timezone
-  copy: >
-    content='{{ timezone }}\n'
-    dest=/etc/timezone
+  copy:
+    content: "{{ timezone }}\n"
+    dest: /etc/timezone
   tags: config
 
 - name: setup hwclock
-  template: >
-    src=hwclock.j2
-    dest=/etc/conf.d/hwclock
-    owner=root mode=0644
+  template:
+    src: hwclock.j2
+    dest: /etc/conf.d/hwclock
+    owner: root
+    mode: 0644
   tags: config
 
 - name: /etc/locale.gen
-  template: >
-    src=locale.gen.j2
-    dest=/etc/locale.gen
+  template:
+    src: locale.gen.j2
+    dest: /etc/locale.gen
   notify: update locales
   tags: [config, env]
 
 - name: set default locale
-  eselect: module=locale target={{ env_locale_lang }}
+  eselect:
+    module: locale
+    target: '{{ env_locale_lang }}'
   notify: update env
   tags: [config, env]
 
 - name: set default editor
-  eselect: module=editor target={{ env_editor }}
+  eselect:
+    module: editor
+    target: '{{ env_editor }}'
   notify: update env
   tags: [config, env]
 
 - name: update skel files
-  include: skel.yml tags=skel
+  include: skel.yml
+  tags: skel
 
 - name: install base packages
-  portage: package={{ item }}
-  with_items: base_pkgs_inst
+  portage:
+    package: '{{ item }}'
+  with_items:
+    - '{{ base_pkgs_inst }}'
   tags: packages
 
 - name: enable and start base services
-  service: >
-    name={{ item }}
-    enabled=yes
-    state=started
-  with_items: base_services_enabled
+  service:
+    name: '{{ item }}'
+    enabled: yes
+    state: started
+  with_items:
+    - '{{ base_services_enabled }}'
   tags: services
